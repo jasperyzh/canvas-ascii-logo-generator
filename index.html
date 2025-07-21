@@ -114,16 +114,33 @@
             display: flex;
             justify-content: center;
             align-items: center;
-            min-height: 120px;
+            min-height: 80px;
             background: #f8f9fa;
             border-radius: 8px;
             padding: 1rem;
-            overflow: hidden;
+            overflow: visible;
         }
 
-        .svg-container svg {
+        .svg-container object {
             max-width: 100%;
+            width: 100%;
             height: auto;
+        }
+
+        .svg-error {
+            color: #718096;
+            font-style: italic;
+            text-align: center;
+            padding: 1rem;
+            background: rgba(113, 128, 150, 0.1);
+            border-radius: 8px;
+            font-size: 0.9rem;
+        }
+
+        .stats-detail {
+            font-size: 0.9rem;
+            opacity: 0.7;
+            margin-top: 0.5rem;
         }
 
         .no-results {
@@ -267,12 +284,21 @@
             "USA_Flag", "Varsity", "Wavy", "Weird", "Wet_Letter", "Whimsy", "Wow"
         ];
 
-        function initializeFonts() {
-            fonts = fontFiles.map(font => ({
+        // Known problematic fonts to exclude
+        const excludeFonts = new Set([
+            // Add font names here if they consistently fail
+        ]);
+
+        async function initializeFonts() {
+            // Filter out known problematic fonts and create font objects
+            const validFonts = fontFiles.filter(font => !excludeFonts.has(font));
+            
+            fonts = validFonts.map(font => ({
                 name: font,
                 displayName: font.replace(/_/g, ' ').replace(/-/g, ' '),
                 path: `svg all fonts/${font}.svg`
             }));
+            
             filteredFonts = [...fonts];
             updateFontCount();
             renderGallery();
@@ -287,6 +313,9 @@
             const gallery = document.getElementById('gallery');
             const loading = document.getElementById('loading');
             const noResults = document.getElementById('noResults');
+            
+            // Reset error count for new render
+            errorCount = 0;
             
             loading.style.display = 'none';
             
@@ -303,12 +332,54 @@
                 <div class="font-card">
                     <div class="font-name">${font.displayName}</div>
                     <div class="svg-container">
-                        <object data="${font.path}" type="image/svg+xml" style="max-width: 100%; height: auto;">
-                            <p>Unable to load ${font.name}</p>
+                        <object 
+                            data="${font.path}" 
+                            type="image/svg+xml"
+                            onload="handleSVGLoad(this)"
+                            onerror="handleSVGError(this, '${font.name}')">
+                            <div class="svg-error">Unable to load ${font.name}</div>
                         </object>
                     </div>
                 </div>
             `).join('');
+        }
+
+        function handleSVGLoad(obj) {
+            // SVG loaded successfully
+            obj.style.display = 'block';
+        }
+
+        let errorCount = 0;
+
+        function handleSVGError(obj, fontName) {
+            // SVG failed to load, show error message
+            errorCount++;
+            obj.style.display = 'none';
+            obj.parentElement.innerHTML = `<div class="svg-error">⚠️ ${fontName.replace(/_/g, ' ')} - Format issue</div>`;
+            console.log(`SVG Error: ${fontName} failed to load`);
+            updateErrorStats();
+        }
+
+        function updateErrorStats() {
+            const statsElement = document.getElementById('fontCount');
+            const totalVisible = filteredFonts.length;
+            const workingCount = totalVisible - errorCount;
+            
+            if (errorCount > 0) {
+                statsElement.innerHTML = `${totalVisible} fonts available <div class="stats-detail">${workingCount} working, ${errorCount} with issues</div>`;
+            } else {
+                statsElement.textContent = `${totalVisible} fonts available`;
+            }
+        }
+
+        // Test SVG validity before rendering
+        function validateSVG(svgPath) {
+            return new Promise((resolve) => {
+                const img = new Image();
+                img.onload = () => resolve(true);
+                img.onerror = () => resolve(false);
+                img.src = svgPath;
+            });
         }
 
         function filterFonts(searchTerm) {

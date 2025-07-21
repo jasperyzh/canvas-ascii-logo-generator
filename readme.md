@@ -2,6 +2,8 @@
 
 A collection of ASCII art fonts and SVG generator using the [ascii-logo](https://github.com/ykhli/ascii-logo) CLI tool.
 
+[Demo Page](https://jasperyzh.github.io/canvas-ascii-logo-generator/)
+
 ## Features
 
 - Generate ASCII art logos as SVG files

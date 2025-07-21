@@ -20,7 +20,7 @@
         }
 
         .container {
-            max-width: 1400px;
+            max-width: 1600px;
             margin: 0 auto;
             padding: 2rem;
         }
@@ -80,7 +80,7 @@
         .gallery {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
-            gap: 2rem;
+            gap: 1rem;
             margin-bottom: 3rem;
         }
 
@@ -121,10 +121,19 @@
             overflow: visible;
         }
 
-        .svg-container object {
+        .svg-container svg {
             max-width: 100%;
             width: 100%;
             height: auto;
+            display: block;
+        }
+
+        .loading-svg {
+            color: #718096;
+            font-style: italic;
+            text-align: center;
+            padding: 2rem;
+            font-size: 0.9rem;
         }
 
         .svg-error {
@@ -331,33 +340,58 @@
             gallery.innerHTML = filteredFonts.map(font => `
                 <div class="font-card">
                     <div class="font-name">${font.displayName}</div>
-                    <div class="svg-container">
-                        <object 
-                            data="${font.path}" 
-                            type="image/svg+xml"
-                            onload="handleSVGLoad(this)"
-                            onerror="handleSVGError(this, '${font.name}')">
-                            <div class="svg-error">Unable to load ${font.name}</div>
-                        </object>
+                    <div class="svg-container" id="svg-${font.name}">
+                        <div class="loading-svg">Loading...</div>
                     </div>
                 </div>
             `).join('');
-        }
-
-        function handleSVGLoad(obj) {
-            // SVG loaded successfully
-            obj.style.display = 'block';
+            
+            // Load SVGs inline for proper CSS control
+            filteredFonts.forEach(font => loadSVGInline(font));
         }
 
         let errorCount = 0;
 
-        function handleSVGError(obj, fontName) {
-            // SVG failed to load, show error message
-            errorCount++;
-            obj.style.display = 'none';
-            obj.parentElement.innerHTML = `<div class="svg-error">⚠️ ${fontName.replace(/_/g, ' ')} - Format issue</div>`;
-            console.log(`SVG Error: ${fontName} failed to load`);
-            updateErrorStats();
+        async function loadSVGInline(font) {
+            const container = document.getElementById(`svg-${font.name}`);
+            if (!container) return;
+            
+            try {
+                const response = await fetch(font.path);
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                
+                const svgText = await response.text();
+                
+                const parser = new DOMParser();
+                const svgDoc = parser.parseFromString(svgText, 'image/svg+xml');
+                
+                const errorNode = svgDoc.querySelector('parsererror');
+                if (errorNode) {
+                    throw new Error('SVG parsing error');
+                }
+                
+                const svgElement = svgDoc.querySelector('svg');
+                if (!svgElement) {
+                    throw new Error('No SVG element found');
+                }
+                
+                // Make SVG responsive by adding viewBox and removing fixed dimensions
+                const originalWidth = svgElement.getAttribute('width');
+                const originalHeight = svgElement.getAttribute('height');
+                if (originalWidth && originalHeight) {
+                    svgElement.setAttribute('viewBox', `0 0 ${originalWidth} ${originalHeight}`);
+                    svgElement.removeAttribute('width');
+                    svgElement.removeAttribute('height');
+                }
+                
+                container.innerHTML = svgElement.outerHTML;
+                
+            } catch (error) {
+                errorCount++;
+                container.innerHTML = `<div class="svg-error">⚠️ ${font.displayName} - Format issue</div>`;
+                console.log(`SVG Error: ${font.name} failed to load:`, error.message);
+                updateErrorStats();
+            }
         }
 
         function updateErrorStats() {
@@ -372,15 +406,7 @@
             }
         }
 
-        // Test SVG validity before rendering
-        function validateSVG(svgPath) {
-            return new Promise((resolve) => {
-                const img = new Image();
-                img.onload = () => resolve(true);
-                img.onerror = () => resolve(false);
-                img.src = svgPath;
-            });
-        }
+
 
         function filterFonts(searchTerm) {
             const term = searchTerm.toLowerCase();
